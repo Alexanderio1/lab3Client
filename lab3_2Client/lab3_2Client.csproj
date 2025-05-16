@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<!-- это ключевое: подключает System.Windows.Forms и всё, что с ним связано -->
+		<UseWindowsForms>true</UseWindowsForms>
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- здесь только WinForms-версия ScottPlot, она сама подтянет core -->
+		<PackageReference Include="ScottPlot.WinForms" Version="4.1.74" />
+	</ItemGroup>
+</Project>

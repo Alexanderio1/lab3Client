@@ -11,12 +11,13 @@ namespace lab3Client
     {
         private readonly TranslatorController _controller = new();
         private readonly Server _server = new();
+        private bool _suppressPathChange = false;
 
         public Translator()
         {
             InitializeComponent();
 
-            // подписка на события контроллера
+            // Подписка на события контроллера.
             _controller.DirectoryChanged += HandleDirectoryChanged;
             _controller.FileSelected += HandleFileSelected;
             _controller.Errors += ShowError;
@@ -25,16 +26,19 @@ namespace lab3Client
             this.Shown += Translator_Shown;
 
 
-            // запускаем сервер в фоновом потоке
+            // Запускаем сервер в фоновом потоке.
             Task.Run(() => _server.Start());
 
             buttonDisconnect.Enabled = false;
             AppendClientLog("Клиентское приложение запущено");
         }
 
-        // ------------------------- обработка изменённого текста пути -------------------------
+        // ------------------------- Обработка изменённого текста пути -------------------------
         private void comboBoxSearch_TextChanged(object sender, EventArgs e)
         {
+            if (_suppressPathChange)          // ← ничего не делаем, если флаг поднят
+                return;
+
             var path = comboBoxSearch.Text.Trim();
             if (string.IsNullOrEmpty(path)) return;
 
@@ -46,12 +50,11 @@ namespace lab3Client
         }
         private void Translator_Shown(object sender, EventArgs e)
         {
-            // теперь форма полностью создана, и richTextServer.Handle != IntPtr.Zero 
             _server.OnLog += AppendServerLog;
             Task.Run(() => _server.Start());
         }
 
-        // двойной клик по элементу списка
+        // Двойной клик по элементу списка.
         private void SendToServer_DoubleClick(object sender, EventArgs e)
         {
             if (listBoxSearch.SelectedItem == null) return;
@@ -94,8 +97,15 @@ namespace lab3Client
             WithBusyCursor(() =>
             {
                 ClearForm();
+
                 var drives = _controller.ConnectToServer(textBoxIPAddress.Text);
+                if (drives.Length == 0) return;
+
                 comboBoxSearch.Items.AddRange(drives);
+
+                _suppressPathChange = true;                // 🔒 глушим
+                comboBoxSearch.Text = drives[0];           // только путь
+                _suppressPathChange = false;               // 🔓 возвращаем
 
                 buttonConnect.Enabled = false;
                 buttonDisconnect.Enabled = true;
@@ -104,14 +114,14 @@ namespace lab3Client
             AppendClientLog($"Клиент подключился к {textBoxIPAddress.Text}");
         }
 
-        private void buttonRequestDir_Click(object sender, EventArgs e)
+
+        private void buttonRequestFile_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(comboBoxSearch.Text))
             {
                 MessageBox.Show("Введите путь каталога.");
                 return;
             }
-
             var path = comboBoxSearch.Text.Trim();
             AppendClientLog($"Клиент запросил структуру каталога: {path}");
 
@@ -125,7 +135,7 @@ namespace lab3Client
             });
         }
 
-        private void buttonRequestFile_Click(object sender, EventArgs e)
+        private void buttonRequestDir_Click(object sender, EventArgs e)
         {
             if (listBoxSearch.SelectedItem == null)
             {

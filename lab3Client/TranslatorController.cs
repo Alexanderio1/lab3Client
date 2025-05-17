@@ -1,10 +1,13 @@
-﻿using System.Net.Sockets;
+﻿using lab3Client;
+using System.IO;
+using System.Net.Sockets;
 
 namespace lab3Client
 {
     internal class TranslatorController
     {
-        private Client _client;
+        private Client? _client;
+
         public Dictionary<string, string> DisplayNameToFullPath { get; } = new();
 
         // события
@@ -13,7 +16,7 @@ namespace lab3Client
         public event Action<string>? Errors;
         public event Action<string>? SocketError;
 
-        #region Публичные методы -------------------------------------------------
+        #region Публичный API
 
         public string[] GetLogicalDrives() => Directory.GetLogicalDrives();
 
@@ -27,14 +30,34 @@ namespace lab3Client
                     throw new DirectoryNotFoundException($"Каталог не найден: {path}");
 
                 SafeSend(path);
-                var entries = SafeReceive().Split('|', StringSplitOptions.RemoveEmptyEntries);
+                var entries = SafeReceive()
+                             .Split('|', StringSplitOptions.RemoveEmptyEntries);
 
                 foreach (var entry in entries)
                 {
-                    var name = Path.GetFileName(entry);
-                    if (string.IsNullOrWhiteSpace(name)) name = entry;
+                    string display, fullPath;
 
-                    DisplayNameToFullPath.TryAdd(name, entry);
+                    switch (entry)
+                    {
+                        case ".":
+                            display = ".";
+                            fullPath = path;                      // текущий
+                            break;
+
+                        case "..":
+                            display = "..";
+                            fullPath = Directory.GetParent(path)?.FullName ?? path;
+                            break;
+
+                        default:
+                            display = Path.GetFileName(entry);
+                            if (string.IsNullOrWhiteSpace(display))
+                                display = entry;
+                            fullPath = entry;
+                            break;
+                    }
+
+                    DisplayNameToFullPath.TryAdd(display, fullPath);
                 }
 
                 DirectoryChanged?.Invoke(this, path);
@@ -62,7 +85,8 @@ namespace lab3Client
         {
             try
             {
-                if (!DisplayNameToFullPath.TryGetValue(displayName, out var fullPath)) return;
+                if (!DisplayNameToFullPath.TryGetValue(displayName, out var fullPath))
+                    return;
 
                 if (Directory.Exists(fullPath))
                     DirectoryChanged?.Invoke(this, fullPath);
@@ -83,7 +107,7 @@ namespace lab3Client
         {
             try
             {
-                Disconnect(); // на всякий случай закрываем прежнее соединение
+                Disconnect();                                 
 
                 _client = new Client(ip);
                 _client.Connect();
@@ -117,11 +141,15 @@ namespace lab3Client
             {
                 Errors?.Invoke(ex.Message);
             }
+            finally
+            {
+                _client = null;                               // чтобы можно было переподключаться
+            }
         }
 
         #endregion
-
-        #region Приватные хелперы ------------------------------------------------
+        /* ----------------------------------------------------------------- */
+        #region Приватные хелперы
 
         private void SafeSend(string msg)
         {
